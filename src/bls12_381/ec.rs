@@ -99,7 +99,7 @@ macro_rules! curve_impl {
             ///
             /// If and only if `greatest` is set will the lexicographically
             /// largest y-coordinate be selected.
-            fn get_point_from_x(x: $basefield, greatest: bool) -> Option<$affine> {
+            pub (crate) fn get_point_from_x(x: $basefield, greatest: bool) -> Option<$affine> {
                 // Compute x^3 + b
                 let mut x3b = x;
                 x3b.square();
@@ -2017,6 +2017,36 @@ pub mod g2 {
         ::tests::curve::curve_tests::<G2>();
     }
 }
+
+
+#[test]
+
+fn extra_bilinearity_test(){
+use rand::{Rand, SeedableRng, XorShiftRng};
+use super::{Fq, FqRepr, Fr};
+use super::super::{PrimeField, PrimeFieldRepr, CurveProjective, CurveAffine};
+ let mut rng = XorShiftRng::from_seed([0x5dbe6259, 0x8d313d76, 0x3237db17, 0xe5bc0654]);
+ for _ in 0..1000{
+ let mut p = loop {
+     let x = Fq::rand(&mut rng);
+     let b = bool::rand(&mut rng);
+     match G1Affine::get_point_from_x(x,b) {
+         Some(p) => break p,
+         None => {},
+     }
+ }.into_projective();
+    let mut a = G1::rand(&mut rng);
+    let a_orig = a.into_affine();
+    let b = G2::rand(&mut rng).into_affine();
+    p.mul_assign(Fr::char());
+    a.add_assign(&p);
+    let a = a.into_affine();
+    assert!(a.pairing_with(&b) == a_orig.pairing_with(&b));
+}
+
+
+}
+
 
 pub use self::g1::*;
 pub use self::g2::*;
