@@ -866,7 +866,7 @@ pub mod g1 {
     }
 
     impl G1Affine {
-        fn scale_by_cofactor(&self) -> G1 {
+        pub (crate) fn scale_by_cofactor(&self) -> G1 {
             // G1 cofactor = (x - 1)^2 / 3  = 76329603384216526031706109802092473003
             let cofactor = BitIterator::new([0x8c00aaab0000aaab, 0x396c8c005555e156]);
             self.mul_bits(cofactor)
@@ -2021,11 +2021,13 @@ pub mod g2 {
 
 #[test]
 
-fn extra_bilinearity_test(){
+fn outside_g1_tests(){
 use rand::{Rand, SeedableRng, XorShiftRng};
-use super::{Fq, FqRepr, Fr};
-use super::super::{PrimeField, PrimeFieldRepr, CurveProjective, CurveAffine};
+use super::{Fq, Fr,FrRepr, Field};
+use super::super::{PrimeField, CurveProjective, CurveAffine};
  let mut rng = XorShiftRng::from_seed([0x5dbe6259, 0x8d313d76, 0x3237db17, 0xe5bc0654]);
+
+ // testing the formula e(a,b) = e(a + r*p,b) for any a G1, b in G2 and p in E(Fq), where r is G1's order.
  for _ in 0..1000{
  let mut p = loop {
      let x = Fq::rand(&mut rng);
@@ -2043,6 +2045,29 @@ use super::super::{PrimeField, PrimeFieldRepr, CurveProjective, CurveAffine};
     let a = a.into_affine();
     assert!(a.pairing_with(&b) == a_orig.pairing_with(&b));
 }
+let cofactor_inv = Fr::from_repr(FrRepr([0x8c00aaab0000aaab, 0x396c8c005555e156,0x0,0x0])).unwrap();
+let cofactor_inv = cofactor_inv.inverse().unwrap();
+let cofactor_inv = cofactor_inv.into_repr();
+
+
+// testing the formula e(a,b) = e(1/c(c*a),b) for any a in E(Fq) and b in G2, where c is the G1 cofactor.
+for _ in 0..20{
+ let mut a = loop {
+     let x = Fq::rand(&mut rng);
+     let b = bool::rand(&mut rng);
+     match G1Affine::get_point_from_x(x,b) {
+         Some(a) => break a,
+         None => {},
+     }
+ }.into_projective();
+    let b = G2::rand(&mut rng).into_affine();
+    let mut a_sub = a.into_affine().scale_by_cofactor();
+    a_sub.mul_assign(cofactor_inv);
+    let a_sub = a_sub.into_affine();
+    let a = a.into_affine();
+    assert!(a.pairing_with(&b) == a_sub.pairing_with(&b));
+}
+
 
 
 }
